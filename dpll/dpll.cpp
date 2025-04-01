@@ -1,330 +1,183 @@
-#include <random>
-#include <algorithm>
-#include <cmath>
-#include <cstdint>
-#include <iostream>
-#include <string>
-#include <vector>
-#include <cstdlib> // 用于atoi
+#!/usr/bin/env python3
+"""
+    SAT solver based on DPLL
+    Course in Advanced Programming in Artificial Intelligence - UdL
+"""
 
-using namespace std;
+import sys
+import random
 
-// 全局未赋值变量列表
-vector<int> unassigned_vars;
+# 在这里定义一个全局变量，用来统计 variable_selection 的调用次数
+variable_selection_count = 0
+def parse(filename):
+    clauses = []
+    with open(filename, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('c'):
+                # 跳过注释行和空行
+                continue
+            if line.startswith('p'):
+                # 例如: p cnf 3 2
+                # 取第3,4个元素分别是nvars, nclauses
+                parts = line.split()
+                nvars, nclauses = parts[2], parts[3]
+                continue
+            # 假设每行子句末尾会有一个 0，比如 "1 -2 0"
+            # line[:-2] 是为了去掉 ' 0'，然后做 split
+            # 如果不放心，可以用更通用的处理：
+            # parts = [int(x) for x in line.split() if x != '0']
+            clause = [int(x) for x in line[:-2].split()]
+            clauses.append(clause)
+    return clauses, int(nvars)
 
-/*
- * enum for different types of return flags defined
- */
-enum Cat {
-  satisfied,   // when a satisfying assignment has been found
-  unsatisfied, // when no satisfying assignment has been found after exhaustive searching
-  normal,      // when DPLL has exited normally
-  completed    // when the DPLL algorithm has completed execution
-};
+def bcp(formula, unit):
+    """
+    BCP (Boolean Constraint Propagation):
+    给定公式 formula 和单元文字 unit，化简 formula 中包含 unit 的子句，
+    并从包含 -unit 的子句中去掉 -unit。
+    """
+    modified = []
+    for clause in formula:
+        # 若子句包含 unit，整条子句为真，可直接跳过
+        if unit in clause:
+            continue
+        # 若子句包含 -unit，需要去掉 -unit
+        if -unit in clause:
+            c = [x for x in clause if x != -unit]
+            # 如果 c 为空，说明子句变成了空子句 -> 冲突返回 -1
+            if len(c) == 0:
+                return -1
+            modified.append(c)
+        else:
+            modified.append(clause)
+    return modified
 
-/*
- * class to represent a boolean formula
- */
-class Formula {
-public:
-  vector<int> literals;        // 存储每个变量的赋值
-  vector<vector<int>> clauses; // 存储子句
+def get_counter(formula):
+    """
+    统计 formula 中每个文字出现的次数
+    """
+    counter = {}
+    for clause in formula:
+        for literal in clause:
+            if literal in counter:
+                counter[literal] += 1
+            else:
+                counter[literal] = 1
+    return counter
 
-  Formula() {}
+def pure_literal(formula):
+    """
+    纯文字消元：
+    只要一个文字从未出现过相反符号，那么它是纯文字，可以将它赋为真
+    并从公式里删除所有包含它的子句。
+    """
+    counter = get_counter(formula)
+    assignment = []
+    pures = []
+    # 找出所有纯文字
+    for literal, times in counter.items():
+        if -literal not in counter:
+            pures.append(literal)
 
-  Formula(const Formula &f) {
-    literals = f.literals;
-    clauses = f.clauses;
-  }
-};
+    # 对每个纯文字执行 BCP
+    for pure in pures:
+        formula = bcp(formula, pure)
 
-/*
- * class to represent the structure and functions of the SAT Solver
- */
-class SATSolverDPLL {
-private:
-  Formula formula;               // the initial formula given as input
-  int literal_count;             // the number of variables in the formula
-  int clause_count;              // the number of clauses in the formula
-  unsigned int rand_seed;        // 存储随机种子
-  mt19937 gen;                   // 随机数生成器
-  int unit_propagate(Formula &); // performs unit propagation
-  int DPLL(Formula &);           // performs DPLL recursively
-  int apply_transform(Formula &, int); // applies the value of the literal in every clause
-  void show_result(Formula &, int);    // displays the result
+    assignment += pures
+    return formula, assignment
 
-public:
-  int select_count;              // 统计select_random_literal调用的次数
-  SATSolverDPLL() : rand_seed(0), gen(rand_seed) {}
-  void initialize(); // Initializes the values
-  void solve();      // Calls the solver
-  void set_seed(unsigned int seed) { rand_seed = seed; gen = mt19937(rand_seed); } // 设置随机种子
-  int select_random_literal(Formula &f);
-  void assign_random_value(Formula &f, int literal_index);
-};
+def unit_propagation(formula):
+    """
+    单子句传播：
+    如果公式中出现单子句，则其文字必须为真。
+    """
+    assignment = []
+    # 找出所有单子句
+    unit_clauses = [c for c in formula if len(c) == 1]
+    while len(unit_clauses) > 0:
+        unit = unit_clauses[0]
+        formula = bcp(formula, unit[0])
+        assignment.append(unit[0])
+        if formula == -1:
+            return -1, []
+        if not formula:
+            # 已经化简为空，说明可满足
+            return formula, assignment
+        unit_clauses = [c for c in formula if len(c) == 1]
+    return formula, assignment
 
-/*
- * function that accepts the inputs from the user and initializes the attributes
- * in the solver
- */
-void SATSolverDPLL::initialize() {
-  select_count = 0;
-  char c;   // store first character
-  string s; // dummy string
+def variable_selection(formula):
+    """
+    随机选取尚未赋值的文字（Heuristic可以自行改进）
+    """
+    
+    global variable_selection_count
+    variable_selection_count += 1
+    counter = get_counter(formula)
+    # 在 Python 3 中，需要将 dict_keys 转成列表再给 random.choice
+    return random.choice(list(counter.keys()))
 
-  while (true) {
-    cin >> c;
-    if (c == 'c') { // if comment
-      getline(cin, s); // ignore
-    } else { // else, if would be a p
-      cin >> s; // this would be cnf
-      break;
-    }
-  }
-  cin >> literal_count;
-  cin >> clause_count;
+def backtracking(formula, assignment):
+    """
+    主递归求解过程：
+    1. 纯文字消元
+    2. 单子句传播
+    3. 递归尝试给下一个变量 True 或 False
+    """
+    formula, pure_assignment = pure_literal(formula)
+    formula, unit_assignment = unit_propagation(formula)
 
-  // set the vectors to their appropriate sizes and initial values
-  formula.literals.clear();
-  formula.literals.resize(literal_count, -1);
-  formula.clauses.clear();
-  formula.clauses.resize(clause_count);
+    assignment = assignment + pure_assignment + unit_assignment
+    if formula == -1:
+        # 冲突 -> 回溯
+        return []
+    if not formula:
+        # 空公式 -> 找到可行解
+        return assignment
 
-  int literal; // store the incoming literal value
-  // iterate over the clauses
-  for (int i = 0; i < clause_count; i++) {
-    while (true) { // while the ith clause gets more literals
-      cin >> literal;
-      if (literal > 0) { // if the variable has positive polarity
-        formula.clauses[i].push_back(2 * (literal - 1)); // store it in the form 2n
-      } else if (literal < 0) { // if the variable has negative polarity
-        formula.clauses[i].push_back(2 * ((-1) * literal - 1) + 1); // store it in the form 2n+1
-      } else {
-        break; // read 0, so move to next clause
-      }
-    }
-  }
+    # 选一个变量赋值
+    variable = variable_selection(formula)
 
-  // 将所有变量加入 unassigned_vars
-  unassigned_vars.clear(); // 清空之前的数据
-  for (int i = 0; i < literal_count; i++) {
-    unassigned_vars.push_back(i); // 将所有变量编号添加进 unassigned_vars
-  }
-}
+    # 先随机决定是给 variable 还是 -variable 赋值
+    if random.random() < 0.5:
+        first_choice, second_choice = variable, -variable
+    else:
+        first_choice, second_choice = -variable, variable
 
-/*
- * function to perform unit resolution in a given formula
- * arguments: f - the formula to perform unit resolution on
- * return value: int - the status of the solver after unit resolution, a member
- * of the Cat enum
- *               Cat::satisfied - the formula has been satisfied
- *               Cat::unsatisfied - the formula can no longer be satisfied
- *               Cat::normal - normal exit
- */
-int SATSolverDPLL::unit_propagate(Formula &f) {
-  bool unit_clause_found = false;
-  if (f.clauses.size() == 0) { // if the formula contains no clauses
-    return Cat::satisfied; // it is vacuously satisfied
-  }
-
-  do {
-    unit_clause_found = false;
-    // iterate over the clauses in f
-    for (int i = 0; i < f.clauses.size(); i++) {
-      if (f.clauses[i].size() == 1) { // if the size of a clause is 1, it is a unit clause
-        unit_clause_found = true;
-        f.literals[f.clauses[i][0] / 2] = f.clauses[i][0] % 2; // 0 - if true, 1 - if false, set the literal
-        // Remove from unassigned_vars
-        unassigned_vars.erase(remove(unassigned_vars.begin(), unassigned_vars.end(), f.clauses[i][0] / 2), unassigned_vars.end());
-        int result = apply_transform(f, f.clauses[i][0] / 2); // apply this change through f
-        // if this caused the formula to be either satisfied or unsatisfied,
-        // return the result flag
-        if (result == Cat::satisfied || result == Cat::unsatisfied) {
-          return result;
-        }
-        break; // exit the loop to check for another unit clause from the start
-      } else if (f.clauses[i].size() == 0) { // if a given clause is empty
-        return Cat::unsatisfied; // the formula is unsatisfiable in this branch
-      }
-    }
-  } while (unit_clause_found);
-
-  return Cat::normal; // if reached here, the unit resolution ended normally
-}
-
-/*
- * applies a value of a literal to all clauses in a given formula
- * arguments: f - the formula to apply on
- *            literal_to_apply - the literal which has just been set
- * return value: int - the return status flag, a member of the Cat enum
- *               Cat::satisfied - the formula has been satisfied
- *               Cat::unsatisfied - the formula can no longer be satisfied
- *               Cat::normal - normal exit
- */
-int SATSolverDPLL::apply_transform(Formula &f, int literal_to_apply) {
-  int value_to_apply = f.literals[literal_to_apply]; // 获取文字的值
-  for (int i = 0; i < f.clauses.size(); i++) {
-    for (int j = 0; j < f.clauses[i].size(); j++) {
-      if ((2 * literal_to_apply + value_to_apply) == f.clauses[i][j]) {
-        f.clauses.erase(f.clauses.begin() + i); // 删除子句
-        i--;
-        if (f.clauses.size() == 0) {
-          return Cat::satisfied;
-        }
-        break;
-      } else if (f.clauses[i][j] / 2 == literal_to_apply) {
-        f.clauses[i].erase(f.clauses[i].begin() + j); // 删除文字
-        j--;
-        if (f.clauses[i].size() == 0) {
-          return Cat::unsatisfied;
-        }
-        break;
-      }
-    }
-  }
-  return Cat::normal; // 如果没有满足或冲突，返回正常状态
-}
-
-/*
- * function to perform the recursive DPLL on a given formula
- * argument: f - the formula to perform DPLL on
- * return value: int - the return status flag, a member of the Cat enum
- *               Cat::normal - exited normally
- *               Cat::completed - result has been found, exit recursion all the way
- */
-int SATSolverDPLL::select_random_literal(Formula &f) {
-  // 如果 unassigned_vars 为空，表示所有变量已被赋值
-  if (unassigned_vars.empty()) {
-    return -1; // 没有可选变量
-  }
-
-  // 使用用户提供的随机种子来初始化随机数生成器
-  uniform_int_distribution<> dis(0, unassigned_vars.size() - 1);
-  int random_index = dis(gen);
-  select_count++;
-  int selected_literal = unassigned_vars[random_index];
-
-  // 从列表中删除选中的变量
-  unassigned_vars.erase(unassigned_vars.begin() + random_index);
-
-  return selected_literal; // 返回选中的变量
-}
-
-// 给选中的变量随机赋值
-void SATSolverDPLL::assign_random_value(Formula &f, int literal_index) {
-  // 使用用户提供的随机种子来初始化随机数生成器
-  uniform_int_distribution<> dis(0, 1); // 随机选择 true 或 false
-
-  // 随机赋值
-  int random_value = dis(gen);
-  f.literals[literal_index] = random_value; // 赋值
-}
-
-int SATSolverDPLL::DPLL(Formula &f) {
-  int result = unit_propagate(f); // 执行单位传播
-  if (result == Cat::satisfied) {
-    show_result(f, result);
-    return Cat::completed;
-  } else if (result == Cat::unsatisfied) {
-    return Cat::normal;
-  }
-
-  // 随机选择一个未赋值的变量
-  int i = select_random_literal(f);
-  if (i == -1) {
-    return Cat::normal; // 没有可选的变量，结束
-  }
-
-  // 随机赋值：0 为 true，1 为 false
-  for (int j = 0; j < 2; j++) {
-    Formula new_f = f; // 复制公式
-    assign_random_value(new_f, i); // 给选中的变量赋随机值
-
-    // 更新子句
-    int transform_result = apply_transform(new_f, i); // 应用赋值到公式
-    if (transform_result == Cat::satisfied) {
-      show_result(new_f, transform_result);
-      return Cat::completed;
-    } else if (transform_result == Cat::unsatisfied) {
-      continue;
-    }
-
-    // 递归调用DPLL
-    int dpll_result = DPLL(new_f);
-    if (dpll_result == Cat::completed) {
-      return dpll_result;
-    }
-  }
-
-  // 回溯时，将变量重新加入未赋值列表
-  unassigned_vars.push_back(i);
-
-  return Cat::normal;
-}
-
-/*
- * function to display the result of the solver
- * arguments: f - the formula when it was satisfied or shown to be unsatisfiable
- *            result
+    solution = backtracking(bcp(formula, first_choice), assignment + [first_choice])
+    if not solution:
+        solution = backtracking(bcp(formula, second_choice), assignment + [second_choice])
+    return solution
 
 
-/*
- * function to display the result of the solver
- * arguments: f - the formula when it was satisfied or shown to be unsatisfiable
- *            result - the result flag, a member of the Cat enum
- */
-void SATSolverDPLL::show_result(Formula &f, int result) {
-  if (result == Cat::satisfied) {
-    cout << "SAT" << endl;
-    for (int i = 0; i < f.literals.size(); i++) {
-      if (i != 0) {
-        cout << " ";
-      }
-      if (f.literals[i] != -1) {
-        cout << pow(-1, f.literals[i]) * (i + 1);
-      } else {
-        cout << (i + 1);
-      }
-    }
-    cout << " 0";
-  } else {
-    cout << "UNSAT";
-  }
-}
+def main():
+    # 命令行参数：python3 solver.py <input.cnf> [seed]
+    if len(sys.argv) < 2:
+        print("Usage: python3 solver.py <input.cnf> [<seed>]")
+        sys.exit(1)
 
-/*
- * function to call the solver
- */
-void SATSolverDPLL::solve() {
-  int result = DPLL(formula); // final result of DPLL on the original formula
-  // if normal return till the end, then the formula could not be satisfied in
-  // any branch, so it is unsatisfiable
-  if (result == Cat::normal) {
-    show_result(formula, Cat::unsatisfied); // the argument formula is a dummy
-                                             // here, the result is UNSAT
-  }
-}
+    filename = sys.argv[1]
+    # 如果指定了种子，就设置随机种子
+    if len(sys.argv) > 2:
+        seed = int(sys.argv[2])
+        random.seed(seed)
 
+    clauses, nvars = parse(filename)
+    solution = backtracking(clauses, [])
 
+    if solution:
+        # 补全所有没有出现的变量：如果没有出现在解中，就默认赋真
+        solution += [x for x in range(1, nvars + 1) if x not in solution and -x not in solution]
+        solution.sort(key=lambda x: abs(x))
+        print("s SATISFIABLE")
+        print("v " + " ".join([str(x) for x in solution]) + " 0")
+    else:
+        print("s UNSATISFIABLE")
 
-int main(int argc, char *argv[]) {
-  SATSolverDPLL solver; // 创建求解器
+    # 运行结束后，打印出 variable_selection 的调用次数
+    global variable_selection_count
+    print(f"variable_selection was called {variable_selection_count} times.")
 
-  // 检查命令行参数，如果提供了随机种子
-  if (argc > 1) {
-    unsigned int seed = atoi(argv[1]);  // 获取第一个命令行参数作为种子
-    solver.set_seed(seed);  // 设置随机种子
-  } else {
-    cout << "No seed provided. Using default seed." << endl;
-  }
-
-  solver.initialize();  // 初始化
-  solver.solve();       // 求解
-
-  // 打印 select_random_literal 被调用的次数
-  cout << "\nselect_random_literal called " 
-       << solver.select_count // 直接访问 public 的成员变量
-       << " times." << endl;
-
-  return 0;
-}
+if __name__ == "__main__":
+    main()
