@@ -16,6 +16,7 @@ The script `generatetseitin.py` generates CNF formulas for different graph types
 
 ```bash
 python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instances_per_size>
+'''
 
 ## Arguments:
 <graph_type>: Specifies the type of graph to generate. Possible values are:
