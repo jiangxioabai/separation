@@ -1,9 +1,11 @@
-# Separation between Wlaksat and DPLL
-1. cnf generator
-2. DPLL
-3. Walksat
+# Separation between Walksat and DPLL
 
-## cnf generator
+This repository contains three part:
+1. **CNF Generator**
+2. **DPLL SAT Solver**
+3. **Walksat SAT Solver**
+
+## CNF Generator
 
 This repository contains a script for generating CNF formulas based on various graph types using the Tseitin transformation. It supports graph types such as trees, grids, bipartite graphs, and more, and outputs them in the DIMACS CNF format.
 
@@ -21,6 +23,7 @@ The script `generatetseitin.py` generates CNF formulas for different graph types
 
 ```bash
 python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instances_per_size>
+
    ```
 
 ### Arguments:
@@ -38,64 +41,81 @@ python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instan
 
 
 
-## DPLL SAT 求解器
+## DPLL SAT Solver
+This project implements a SAT solver based on the DPLL algorithm, supporting four different restart strategies:
 
-本项目实现了一个基于 DPLL 算法的 SAT 求解器，并支持以下 4 种重启策略：
-- **none**：无重启  
-- **fixed**：固定间隔重启  
-- **exponential**：指数间隔重启  
-- **luby**：Luby 序列重启  
+-none: No restarts
 
-## 使用方法
+-fixed: Fixed interval restarts
 
-以下是常见的命令行示例：
+-exponential: Exponential interval restarts
 
-1. **无重启**  
+-luby: Luby sequence restarts
+
+### Usage
+
+
+1. **No restart**  
    ```bash
    python3 solver_with_restarts.py test.cnf 42 --restart none
    ```
 
-2. **固定间隔重启** (例如每 100000 次决策重启一次)  
+2. **ixed interval restart** (e.g., restart every 100000 decisions)
    ```bash
    python3 solver_with_restarts.py test.cnf 42 --restart fixed --interval 100000
    ```
 
-3. **指数间隔重启** (例如初始间隔 10，每次重启后乘以因子 2)  
+3. **Exponential interval restart** 
    ```bash
    python3 solver_with_restarts.py test.cnf 42 --restart exponential --init 10 --factor 2
    ```
 
-4. **Luby 重启**
+4. **Luby restart**
    ```bash
    python3 solver_with_restarts.py test.cnf 42 --restart luby
    ```
 
-> 注意：若需要限制最大决策次数，可以加上 `--max-decisions` 参数，例如：
+> Note: To limit the maximum number of decisions, add the `--max-decisions` argument, for example:
 > ```bash
 > python3 solver_with_restarts.py test.cnf 42 --restart fixed --interval 100 --max-decisions 100000
 > ```
 
-## 参数说明
+## Parameters
 
-- **`cnf_file`**: 输入的 DIMACS 格式 CNF 文件路径。  
-- **`seed`**: 随机种子 (用于控制随机变量选择)。  
-- **`--restart`**: 重启策略，可取 `none|fixed|exponential|luby`：  
-  - `none`：不进行任何重启。  
-  - `fixed`：每隔固定间隔（由 `--interval` 指定）重启一次。  
-  - `exponential`：使用指数增长间隔重启，起始值由 `--init` 指定，每次重启后乘以 `--factor`。  
-  - `luby`：使用 Luby 重启策略  
-- **`--interval`**: 固定间隔重启时，每隔多少“决策次数”进行一次重启。(默认：100)  
-- **`--init`**: 指数间隔重启的初始间隔。(默认：10)  
-- **`--factor`**: 指数间隔重启的倍增因子。(默认：2)  
-- **`--max-decisions`**: 若决策次数超过此值还没找到解，则停止并返回 `UNSAT`。(默认：1000000)
+- **`cnf_file`**: Input DIMACS format CNF file path.
+- **`seed`**: Random seed (used for variable selection).
+- **`--restart`**: Restart strategy, which can be `none|fixed|exponential|luby`:
+  - `none`: No restart.
+  - `fixed`: Restart every fixed interval (specified by `--interval`).
+  - `exponential`: Restart at exponentially increasing intervals, starting from `--init` and multiplying by `--factor` each time.
+  - `luby`: Use Luby restart strategy.
+- **`--interval`**: Interval for fixed restart (default: 100).
+- **`--init`**: Initial interval for exponential restart (default: 10).
+- **`--factor`**: Multiplication factor for exponential restart (default: 2).
+- **`--max-decisions`**: Stop if the number of decisions exceeds this value without finding a solution (default: 1000000).
 
-示例：  
+
+Example：  
 ```bash
 python3 solver_with_restarts.py test.cnf 42 --restart exponential --init 10 --factor 2 --max-decisions 50000
 ```
-上面表示：对于文件 `test.cnf`，随机种子为 42，使用 **指数重启**，初始间隔是 10，每次重启后间隔乘以 2，最多允许 50,000 次决策。
+This command will solve the `test.cnf` file with seed 42, using exponential restarts, starting with an interval of 10, doubling each time, and allowing up to 50,000 decisions.
 
 ## Walksat
 
+This part implements a CNF solver that uses random assignments to solve SAT problems. The solver performs flips on variables until it either finds a satisfying assignment or exceeds the maximum allowed flips or timeout.
 
+## Requirements
+
+- Python 3
+- `bitarray` module (install via `pip install bitarray`)
+
+## Usage
+
+You can run the script to solve a single CNF file with a specified timeout and seed.
+
+### Command-Line Usage
+
+```bash
+python3 solve_cnf.py <cnf_file> <result_folder> [--timeout <timeout>] [--seed <seed>]
 
