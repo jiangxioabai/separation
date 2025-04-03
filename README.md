@@ -1,3 +1,37 @@
+# CNF Formula Generator
+
+This repository contains a script for generating CNF formulas based on various graph types using the Tseitin transformation. It supports graph types such as trees, grids, bipartite graphs, and more, and outputs them in the DIMACS CNF format.
+
+## Requirements
+
+Ensure the following Python dependencies are installed:
+
+- `networkx`
+- `matplotlib`
+- `cnfgen` ([local module](https://github.com/MassimoLauria/cnfgen))
+
+## Usage
+
+The script `generatetseitin.py` generates CNF formulas for different graph types. To run the script, use the following command:
+
+```bash
+python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instances_per_size>
+
+## Arguments:
+<graph_type>: Specifies the type of graph to generate. Possible values are:
+  - tree: Random tree
+  - grid: 2D grid graph
+  - regular: Random regular graph with degree 4
+  - L_n: Defined in the referenced paper
+
+<start_nodes>: The starting number of nodes for the graph.
+<max_nodes>: The maximum number of nodes for the graph.
+<step>: The step size for generating graphs with increasing node numbers.
+<instances_per_size>: The number of instances to generate for each graph size.
+
+
+
+
 # DPLL with Restarts
 
 本项目包含一个基于 DPLL 的 SAT 求解器，并支持以下 4 种重启策略：
