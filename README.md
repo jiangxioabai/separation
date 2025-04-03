@@ -1,8 +1,13 @@
-# CNF Formula Generator
+# Separation between Wlaksat and DPLL
+1. cnf generator
+2. DPLL
+3. Walksat
+
+## cnf generator
 
 This repository contains a script for generating CNF formulas based on various graph types using the Tseitin transformation. It supports graph types such as trees, grids, bipartite graphs, and more, and outputs them in the DIMACS CNF format.
 
-## Requirements
+### Requirements
 
 Ensure the following Python dependencies are installed:
 
@@ -10,7 +15,7 @@ Ensure the following Python dependencies are installed:
 - `matplotlib`
 - `cnfgen` ([local module](https://github.com/MassimoLauria/cnfgen))
 
-## Usage
+### Usage
 
 The script `generatetseitin.py` generates CNF formulas for different graph types. To run the script, use the following command:
 
@@ -18,7 +23,7 @@ The script `generatetseitin.py` generates CNF formulas for different graph types
 python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instances_per_size>
    ```
 
-## Arguments:
+### Arguments:
 <graph_type>: Specifies the type of graph to generate. Possible values are:
   - tree: Random tree
   - grid: 2D grid graph
@@ -33,9 +38,9 @@ python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instan
 
 
 
-# DPLL with Restarts
+## DPLL SAT 求解器
 
-本项目包含一个基于 DPLL 的 SAT 求解器，并支持以下 4 种重启策略：
+本项目实现了一个基于 DPLL 算法的 SAT 求解器，并支持以下 4 种重启策略：
 - **none**：无重启  
 - **fixed**：固定间隔重启  
 - **exponential**：指数间隔重启  
@@ -50,9 +55,9 @@ python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instan
    python3 solver_with_restarts.py test.cnf 42 --restart none
    ```
 
-2. **固定间隔重启** (例如每 100 次决策重启一次)  
+2. **固定间隔重启** (例如每 100000 次决策重启一次)  
    ```bash
-   python3 solver_with_restarts.py test.cnf 42 --restart fixed --interval 100
+   python3 solver_with_restarts.py test.cnf 42 --restart fixed --interval 100000
    ```
 
 3. **指数间隔重启** (例如初始间隔 10，每次重启后乘以因子 2)  
@@ -60,9 +65,9 @@ python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instan
    python3 solver_with_restarts.py test.cnf 42 --restart exponential --init 10 --factor 2
    ```
 
-4. **Luby 重启** (生成长度为 1000 的 Luby 序列)  
+4. **Luby 重启**
    ```bash
-   python3 solver_with_restarts.py test.cnf 42 --restart luby --luby-limit 1000
+   python3 solver_with_restarts.py test.cnf 42 --restart luby
    ```
 
 > 注意：若需要限制最大决策次数，可以加上 `--max-decisions` 参数，例如：
@@ -78,12 +83,11 @@ python3 generatetseitin.py <graph_type> <start_nodes> <max_nodes> <step> <instan
   - `none`：不进行任何重启。  
   - `fixed`：每隔固定间隔（由 `--interval` 指定）重启一次。  
   - `exponential`：使用指数增长间隔重启，起始值由 `--init` 指定，每次重启后乘以 `--factor`。  
-  - `luby`：使用 Luby 重启策略，序列长度由 `--luby-limit` 控制。  
+  - `luby`：使用 Luby 重启策略  
 - **`--interval`**: 固定间隔重启时，每隔多少“决策次数”进行一次重启。(默认：100)  
 - **`--init`**: 指数间隔重启的初始间隔。(默认：10)  
 - **`--factor`**: 指数间隔重启的倍增因子。(默认：2)  
-- **`--luby-limit`**: 生成的 Luby 序列最大长度。(默认：1000)  
-- **`--max-decisions`**: 若决策次数超过此值还没找到解，则停止并返回 `UNSAT`。(默认：100000)
+- **`--max-decisions`**: 若决策次数超过此值还没找到解，则停止并返回 `UNSAT`。(默认：1000000)
 
 示例：  
 ```bash
@@ -91,7 +95,7 @@ python3 solver_with_restarts.py test.cnf 42 --restart exponential --init 10 --fa
 ```
 上面表示：对于文件 `test.cnf`，随机种子为 42，使用 **指数重启**，初始间隔是 10，每次重启后间隔乘以 2，最多允许 50,000 次决策。
 
----
+## Walksat
 
-若需要进一步测试或查看策略的效果，可自行修改和观察运行结果、求解时间、重启次数等指标。
+
 
